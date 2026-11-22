@@ -6,6 +6,7 @@ namespace app\controllers;
 
 use Yii;
 use app\components\JwtAuth;
+use app\models\AuditLog;
 use app\models\User;
 use yii\filters\ContentNegotiator;
 use yii\filters\VerbFilter;
@@ -124,6 +125,8 @@ class UsersController extends Controller
             ];
         }
 
+        AuditLog::log('users', $id, 'VIEW');
+
         return [
             'rc' => 200,
             'rm' => 'Berhasil',
@@ -147,7 +150,6 @@ class UsersController extends Controller
         $user->name = trim((string)($params['name'] ?? $params['full_name'] ?? ''));
         $user->email = !empty($params['email']) ? trim((string)$params['email']) : null;
         $user->roles = isset($params['roles']) ? (int)$params['roles'] : (isset($params['role_id']) ? (int)$params['role_id'] : null);
-
         $user->password_hash = Yii::$app->security->generatePasswordHash(md5('Admin@123'));
         $user->is_active = true;
         $user->created_at = $now;
@@ -170,10 +172,13 @@ class UsersController extends Controller
             ->where(['u.id' => $user->id])
             ->one();
 
+        $userData = $this->dataUser($newUser ?? $user);
+        AuditLog::log('users', (int)$user->id, 'CREATE', null, $userData);
+
         return [
             'rc' => 200,
             'rm' => 'Berhasil',
-            'data' => $this->dataUser($newUser ?? $user),
+            'data' => $userData,
         ];
     }
 
@@ -187,6 +192,8 @@ class UsersController extends Controller
                 'data' => null,
             ];
         }
+
+        $oldValues = $this->dataUser($user);
 
         $request = Yii::$app->request;
         $params = array_merge(
@@ -230,10 +237,13 @@ class UsersController extends Controller
             ->where(['u.id' => $user->id])
             ->one();
 
+        $newValues = $this->dataUser($updatedUser ?? $user);
+        AuditLog::log('users', (int)$user->id, 'UPDATE', $oldValues, $newValues);
+
         return [
             'rc' => 200,
             'rm' => 'Berhasil',
-            'data' => $this->dataUser($updatedUser ?? $user),
+            'data' => $newValues,
         ];
     }
 
@@ -247,6 +257,8 @@ class UsersController extends Controller
                 'data' => null,
             ];
         }
+
+        $oldStatus = (bool)$user->is_active;
 
         $request = Yii::$app->request;
         $params = array_merge(
@@ -273,10 +285,13 @@ class UsersController extends Controller
             ->where(['u.id' => $user->id])
             ->one();
 
+        $userData = $this->dataUser($updatedUser ?? $user);
+        AuditLog::log('users', (int)$user->id, 'STATUS', ['is_active' => $oldStatus], ['is_active' => (bool)$user->is_active]);
+
         return [
             'rc' => 200,
             'rm' => "User berhasil {$statusText}",
-            'data' => $this->dataUser($updatedUser ?? $user),
+            'data' => $userData,
         ];
     }
 
@@ -291,6 +306,8 @@ class UsersController extends Controller
             ];
         }
 
+        $oldValues = $this->dataUser($user);
+
         $now = date('Y-m-d H:i:s');
         $currentUserId = Yii::$app->user->id !== null ? (int)Yii::$app->user->id : null;
 
@@ -298,6 +315,8 @@ class UsersController extends Controller
         $user->updated_at = $now;
         $user->updated_by = $currentUserId;
         $user->save(false);
+
+        AuditLog::log('users', (int)$user->id, 'DELETE', $oldValues, null);
 
         return [
             'rc' => 200,
