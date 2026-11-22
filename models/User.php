@@ -4,71 +4,128 @@ declare(strict_types=1);
 
 namespace app\models;
 
-use yii\base\BaseObject;
+use Yii;
+use yii\db\ActiveRecord;
 use yii\web\IdentityInterface;
 
-class User extends BaseObject implements IdentityInterface
+/**
+ * User model
+ *
+ * @property int $id
+ * @property string $username
+ * @property string|null $email
+ * @property string $password_hash
+ * @property string $full_name
+ * @property bool $is_active
+ * @property string|null $last_login_at
+ * @property string $created_at
+ * @property int|null $created_by
+ * @property string $updated_at
+ * @property int|null $updated_by
+ * @property string|null $deleted_at
+ */
+class User extends ActiveRecord implements IdentityInterface
 {
-    public int|string $id = '';
-    public string $username = '';
-    public string $passwordHash = '';
-    public string $authKey = '';
-    public string $accessToken = '';
-    private static array $_users = [
-        '100' => [
-            'id' => '100',
-            'username' => 'admin',
-            // password: admin
-            'passwordHash' => '$2y$13$gYAywKSkhfZDq9FLNdm7buKnvlRxDexf5xipSMAxQPDUxpaptmZJu',
-            'authKey' => 'test100key',
-            'accessToken' => '100-token',
-        ],
-        '101' => [
-            'id' => '101',
-            'username' => 'demo',
-            // password: demo
-            'passwordHash' => '$2y$13$alRLq1PGVMlGYwS/Y3iy3ewQns1Z8ol8Iq6Zb5k7ZwEhblA1aL29y',
-            'authKey' => 'test101key',
-            'accessToken' => '101-token',
-        ],
-    ];
+    /**
+     * @var string|null Virtual property untuk menampung nama role dari JOIN query
+     */
+    public ?string $role_name = null;
+
     /**
      * {@inheritdoc}
      */
-    public static function findIdentity($id): static|null
+    public static function tableName(): string
     {
-        return isset(self::$_users[$id]) ? new static(self::$_users[$id]) : null;
+        return '{{%users}}';
     }
 
     /**
      * {@inheritdoc}
      */
-    public static function findIdentityByAccessToken($token, $type = null): static|null
+    public function rules(): array
     {
-        foreach (self::$_users as $user) {
-            if ($user['accessToken'] === $token) {
-                return new static($user);
-            }
+        return [
+            [['username', 'roles', 'password_hash', 'full_name'], 'required'],
+            [['is_active'], 'boolean'],
+            [['email'], 'email'],
+            [['last_login_at', 'created_at', 'updated_at', 'deleted_at'], 'safe'],
+            [['roles', 'created_by', 'updated_by'], 'integer'],
+            [['username', 'email', 'password_hash', 'full_name'], 'string', 'max' => 255],
+            [['username'], 'unique', 'filter' => ['deleted_at' => null]],
+        ];
+    }
+
+    /**
+     * Relasi ke model Role
+     */
+    public function getRole()
+    {
+        return $this->hasOne(Role::class, ['id' => 'roles']);
+    }
+
+    /**
+     * Getter alias $user->name -> $user->full_name
+     */
+    public function getName(): ?string
+    {
+        return $this->full_name;
+    }
+
+    /**
+     * Setter alias $user->name = 'Admin' -> $user->full_name = 'Admin'
+     */
+    public function setName(?string $value): void
+    {
+        $this->full_name = $value;
+    }
+
+    /**
+     * Exclude sensitive attributes from array / JSON serialization.
+     */
+    public function fields(): array
+    {
+        $fields = parent::fields();
+        unset($fields['password_hash']);
+        return $fields;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public static function findIdentity($id): ?static
+    {
+        return static::findOne(['id' => $id, 'deleted_at' => null]);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public static function findIdentityByAccessToken($token, $type = null): ?static
+    {
+        $payload = \app\components\JwtHelper::validateToken((string)$token);
+        if ($payload === null || empty($payload['uid'])) {
+            return null;
         }
 
-        return null;
+        return static::findOne([
+            'id' => $payload['uid'],
+            'is_active' => true,
+            'deleted_at' => null,
+        ]);
     }
 
     /**
-     * Finds user by username
+     * Finds active user by username
      *
      * @param string $username
      * @return static|null
      */
-    public static function findByUsername(string $username): static|null
+    public static function findByUsername(string $username): ?static
     {
-        foreach (self::$_users as $user) {
-            if (strcasecmp($user['username'], $username) === 0) {
-                return new static($user);
-            }
-        }
-
-        return null;
+        return static::find()
+            ->where(['ILIKE', 'username', $username])
+            ->andWhere(['deleted_at' => null])
+            ->one();
     }
 
     /**
@@ -82,9 +139,9 @@ class User extends BaseObject implements IdentityInterface
     /**
      * {@inheritdoc}
      */
-    public function getAuthKey(): string|null
+    public function getAuthKey(): ?string
     {
-        return $this->authKey;
+        return md5((string)$this->id . (string)$this->password_hash . (string)$this->created_at);
     }
 
     /**
@@ -92,6 +149,45 @@ class User extends BaseObject implements IdentityInterface
      */
     public function validateAuthKey($authKey): bool
     {
-        return $this->authKey === $authKey;
+        return $this->getAuthKey() === $authKey;
+    }
+
+    /**
+     * Validates password
+     *
+     * @param string $password password to validate
+     * @return bool if password provided is valid for current user
+     */
+    public function validatePassword(string $password): bool
+    {
+        if (empty($this->password_hash)) {
+            return false;
+        }
+
+        try {
+            if (Yii::$app->security->validatePassword($password, $this->password_hash)) {
+                return true;
+            }
+            if (Yii::$app->security->validatePassword(md5($password), $this->password_hash)) {
+                return true;
+            }
+        } catch (\Throwable) {
+            // Not a bcrypt/argon2 hash or invalid format, continue to fallback
+        }
+
+        return hash_equals((string)$this->password_hash, $password)
+            || hash_equals((string)$this->password_hash, md5($password))
+            || password_verify($password, (string)$this->password_hash)
+            || password_verify(md5($password), (string)$this->password_hash);
+    }
+
+    /**
+     * Generates password hash from password with bcrypt(md5($password)) format
+     *
+     * @param string $password
+     */
+    public function setPassword(string $password): void
+    {
+        $this->password_hash = Yii::$app->security->generatePasswordHash(md5($password));
     }
 }

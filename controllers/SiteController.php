@@ -82,25 +82,97 @@ class SiteController extends Controller
     }
 
     /**
+     * {@inheritdoc}
+     */
+    public function beforeAction($action): bool
+    {
+        if ($action->id === 'login') {
+            $this->enableCsrfValidation = false;
+        }
+
+        return parent::beforeAction($action);
+    }
+
+    /**
      * Login action.
      *
-     * @return Response|string
+     * @return Response|array
      */
-    public function actionLogin(): Response|string
+    public function actionLogin(): Response|array
     {
-        if (!Yii::$app->user->isGuest) {
-            return $this->goHome();
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        $request = Yii::$app->request;
+        if (!$request->isPost) {
+            return [
+                'rc' => 405,
+                'rm' => 'Method tidak diizinkan. Gunakan method POST.',
+                'data' => null,
+            ];
         }
 
-        $model = new LoginForm($this->security);
+        $body = (array)$request->getBodyParams();
+        $post = (array)$request->post();
 
-        if ($model->load($this->request->post()) && $model->login()) {
-            return $this->goBack();
+        $username = trim((string)($post['username'] ?? $body['username'] ?? ''));
+        $password = (string)($post['password'] ?? $body['password'] ?? '');
+
+        if ($username === '' || $password === '') {
+            return [
+                'rc' => 400,
+                'rm' => 'Username dan password wajib diisi',
+                'data' => null,
+            ];
         }
 
-        $model->password = '';
+        $user = \app\models\User::findByUsername($username);
+        if (!$user || !$user->validatePassword($password)) {
+            return [
+                'rc' => 401,
+                'rm' => 'Username atau password salah',
+                'data' => null,
+            ];
+        }
 
-        return $this->render('login', ['model' => $model]);
+        if (!$user->is_active) {
+            return [
+                'rc' => 403,
+                'rm' => 'User tidak aktif',
+                'data' => null,
+            ];
+        }
+
+        $token = \app\components\JwtHelper::generateToken([
+            'uid' => (int)$user->id,
+            'username' => $user->username,
+        ]);
+
+        $user->last_login_at = date('Y-m-d H:i:s');
+        $user->save(false);
+
+        if (!headers_sent()) {
+            Yii::$app->user->login($user, 3600 * 24 * 30);
+        } else {
+            Yii::$app->user->setIdentity($user);
+        }
+
+        return [
+            'rc' => 200,
+            'rm' => 'Berhasil',
+            'data' => [
+                'user' => [
+                    'id' => (int)$user->id,
+                    'username' => $user->username,
+                    'email' => $user->email,
+                    'full_name' => $user->full_name,
+                    'is_active' => (bool)$user->is_active,
+                    'last_login_at' => $user->last_login_at,
+                    'created_at' => $user->created_at,
+                    'created_by' => $user->created_by !== null ? (int)$user->created_by : null,
+                ],
+                'token' => $token,
+            ],
+        ];
     }
 
     /**
