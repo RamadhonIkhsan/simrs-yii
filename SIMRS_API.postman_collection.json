@@ -1,0 +1,342 @@
+{
+	"info": {
+		"_postman_id": "c1f7a0b5-7e89-4a3d-b2a1-e3895e729a01",
+		"name": "SIMRS Backend - Auth & Users API",
+		"description": "Postman Collection untuk endpoint Backend SIMRS Yii2:\n- POST /login (form-data username & password)\n- GET /users (All)\n- GET /users/:id\n- POST /users (Create)\n- PUT /users/:id (Update)\n- DELETE /users/:id (Soft Delete)\n\nCatatan:\nRequest /login sudah dilengkapi script otomatis untuk menyimpan token ke collection variable `token`.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost/OTHER/SIMRS/simrs-yii/web",
+			"type": "string",
+			"description": "Ganti dengan domain local Anda (misal http://simrs-yii.test atau http://localhost:8080)"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string",
+			"description": "Token JWT otomatis terisi saat menjalankan request POST Login"
+		},
+		{
+			"key": "user_id",
+			"value": "2",
+			"type": "string",
+			"description": "ID user untuk request GET/PUT/DELETE by ID (otomatis terupdate saat Create User)"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login (POST /login)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"if (res.rc === 200 && res.data && res.data.token) {",
+									"    pm.collectionVariables.set(\"token\", res.data.token);",
+									"    console.log(\"Token berhasil disimpan ke variabel: \", res.data.token);",
+									"    pm.test(\"Login berhasil & token didapatkan\", function () {",
+									"        pm.expect(res.rc).to.eql(200);",
+									"        pm.expect(res.data.token).to.be.a('string');",
+									"    });",
+									"} else {",
+									"    pm.test(\"Login gagal\", function () {",
+									"        pm.expect(res.rc).to.eql(200);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "username",
+									"value": "admin",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "admin",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"login"
+							]
+						},
+						"description": "Login menggunakan formData `username` dan `password`.\nJika sukses, token akan otomatis tersimpan di collection variable `token`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get All Users (GET /users)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users?page=1&size=10&search=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Nomor halaman"
+								},
+								{
+									"key": "size",
+									"value": "10",
+									"description": "Jumlah data per halaman"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Kata kunci pencarian (username, full_name, email, role)"
+								}
+							]
+						},
+						"description": "Mengambil daftar user dengan format pagination tabel (page, size, totalPages, totalElements, data)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User By ID (GET /users/:id)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"{{user_id}}"
+							]
+						},
+						"description": "Mengambil data detail user berdasarkan ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Create User (POST /users)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var res = pm.response.json();",
+									"if (res.rc === 200 && res.data && res.data.id) {",
+									"    pm.collectionVariables.set(\"user_id\", res.data.id);",
+									"    console.log(\"User ID baru disimpan: \", res.data.id);",
+									"    pm.test(\"Create User berhasil\", function () {",
+									"        pm.expect(res.rc).to.eql(200);",
+									"        pm.expect(res.data.id).to.be.a('number');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"dokter_anwar\",\n  \"email\": \"anwar@hospital.org\",\n  \"full_name\": \"dr. Anwar Fuadi, Sp.B\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users"
+							]
+						},
+						"description": "Membuat user baru.\n- username: harus unik\n- email: alamat email aktif\n- full_name: nama lengkap\n- password_hash: otomatis bcrypt(md5('Admin@123'))\n- is_active: otomatis true\n- created_by & updated_by: otomatis mengambil ID dari token login\n- created_at & updated_at: otomatis now()"
+					},
+					"response": []
+				},
+				{
+					"name": "Update User By ID (PUT /users/:id)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"full_name\": \"dr. Anwar Fuadi, Sp.B, FICS\",\n  \"email\": \"anwar.fuadi@hospital.org\",\n  \"is_active\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"{{user_id}}"
+							]
+						},
+						"description": "Memperbarui data user berdasarkan ID.\n- updated_by: otomatis diisi ID user dari token login\n- updated_at: otomatis now()"
+					},
+					"response": []
+				},
+				{
+					"name": "Active / Nonactive User (PATCH /users/:id/status)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"is_active\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"{{user_id}}",
+								"status"
+							]
+						},
+						"description": "Mengubah status aktif/nonaktif user.\n- Kirim `{\"is_active\": false}` untuk menonaktifkan\n- Kirim `{\"is_active\": true}` untuk mengaktifkan\n- Jika body kosong, status akan otomatis di-toggle (berubah ke kebalikan status saat ini)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User By ID (DELETE /users/:id)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"{{user_id}}"
+							]
+						},
+						"description": "Menghapus data user (soft delete: mengisi deleted_at dan updated_by)."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
