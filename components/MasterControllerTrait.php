@@ -17,6 +17,7 @@ trait MasterControllerTrait
         $roleCode = $user?->role?->code;
 
         if ($roleCode === null || !in_array($roleCode, $allowedRoles, true)) {
+            Yii::$app->response->statusCode = 403;
             return [
                 'rc' => 403,
                 'rm' => 'Akses ditolak: Anda tidak memiliki hak akses untuk aksi ini',
