@@ -6,8 +6,10 @@ namespace app\controllers;
 
 use Yii;
 use app\components\JwtAuth;
+use app\components\MasterControllerTrait;
 use app\models\AuditLog;
 use app\models\Patient;
+use app\models\Visit;
 use DateTime;
 use yii\db\Exception as DbException;
 use yii\db\Query;
@@ -18,6 +20,8 @@ use yii\web\Response;
 
 class PatientsController extends Controller
 {
+    use MasterControllerTrait;
+
     public function behaviors(): array
     {
         return [
@@ -39,6 +43,7 @@ class PatientsController extends Controller
                     'update'          => ['PUT', 'PATCH'],
                     'delete'          => ['DELETE'],
                     'check-duplicate' => ['POST'],
+                    'visits'          => ['GET'],
                 ],
             ],
         ];
@@ -418,6 +423,55 @@ class PatientsController extends Controller
             'rm' => 'Berhasil',
             'data' => $data,
         ];
+    }
+
+    public function actionVisits(int $id): array
+    {
+        $denied = $this->requireRoles(['ADMIN', 'REGISTRATION', 'DOCTOR']);
+        if ($denied !== null) {
+            return $denied;
+        }
+
+        $patient = Patient::findOne(['id' => $id, 'deleted_at' => null]);
+        if (!$patient) {
+            return [
+                'rc'   => 404,
+                'rm'   => 'Data pasien tidak ditemukan',
+                'data' => null,
+            ];
+        }
+
+        $query = Visit::find()
+            ->with(['poli', 'doctor'])
+            ->where(['patient_id' => $id]);
+
+        $orderBy = [
+            'visit_date' => SORT_DESC,
+            'created_at' => SORT_DESC,
+            'id'         => SORT_DESC,
+        ];
+
+        return $this->buildPagedResponse($query, $orderBy, function (Visit $v): array {
+            return [
+                'id'               => (int)$v->id,
+                'visit_no'         => $v->visit_no,
+                'visit_date'       => $v->visit_date,
+                'queue_no'         => (int)$v->queue_no,
+                'status'           => $v->status,
+                'registration_fee' => (float)$v->registration_fee,
+                'poli'             => $v->poli ? [
+                    'id'   => (int)$v->poli->id,
+                    'code' => $v->poli->code,
+                    'name' => $v->poli->name,
+                ] : null,
+                'doctor'           => $v->doctor ? [
+                    'id'        => (int)$v->doctor->id,
+                    'full_name' => $v->doctor->full_name,
+                    'specialty' => $v->doctor->specialty,
+                ] : null,
+                'created_at'       => $v->created_at,
+            ];
+        });
     }
 
     private function checkDuplicateConflict(Patient $patient, ?int $excludeId = null): ?array

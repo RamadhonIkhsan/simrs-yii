@@ -121,6 +121,8 @@ $config = [
 
                 'POST api/patients/check-duplicate' => 'patients/check-duplicate',
                 'POST patients/check-duplicate' => 'patients/check-duplicate',
+                'GET api/patients/<id:\d+>/visits' => 'patients/visits',
+                'GET patients/<id:\d+>/visits' => 'patients/visits',
                 'GET api/patients' => 'patients/index',
                 'GET patients' => 'patients/index',
                 'GET api/patients/<id:\d+>' => 'patients/view',
@@ -187,6 +189,18 @@ $config = [
                 'PUT,PATCH icd10/<code:[A-Za-z0-9._-]+>' => 'icd10/update',
                 'DELETE api/icd10/<code:[A-Za-z0-9._-]+>' => 'icd10/delete',
                 'DELETE icd10/<code:[A-Za-z0-9._-]+>' => 'icd10/delete',
+
+                'GET api/visits' => 'visits/index',
+                'GET visits' => 'visits/index',
+                'POST api/visits' => 'visits/create',
+                'POST visits' => 'visits/create',
+                'GET api/visits/<id:\d+>' => 'visits/view',
+                'GET visits/<id:\d+>' => 'visits/view',
+                'PUT,PATCH api/visits/<id:\d+>/status' => 'visits/status',
+                'PUT,PATCH visits/<id:\d+>/status' => 'visits/status',
+
+                'GET api/queues' => 'queues/index',
+                'GET queues' => 'queues/index',
             ],
         ],
     ],
