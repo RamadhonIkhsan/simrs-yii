@@ -334,6 +334,19 @@ class BillsController extends Controller
         $paidAmount = (float)$bill->paid_amount;
         $outstanding = max(0.0, $totalAmount - $paidAmount);
 
+        $payments = [];
+        foreach ($bill->payments as $p) {
+            $payments[] = [
+                'id'           => (int)$p->id,
+                'payment_no'   => $p->payment_no,
+                'amount'       => (float)$p->amount,
+                'method'       => $p->method,
+                'reference_no' => $p->reference_no,
+                'status'       => $p->status,
+                'paid_at'      => $p->paid_at,
+            ];
+        }
+
         return [
             'id'             => (int)$bill->id,
             'bill_no'        => $bill->bill_no,
@@ -366,7 +379,7 @@ class BillsController extends Controller
             ] : null,
             'items'          => $items,
             'subtotals'      => $subtotals,
-            'payments'       => [],
+            'payments'       => $payments,
         ];
     }
 }

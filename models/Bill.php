@@ -50,4 +50,9 @@ class Bill extends ActiveRecord
     {
         return $this->hasMany(BillItem::class, ['bill_id' => 'id'])->orderBy(['id' => SORT_ASC]);
     }
+
+    public function getPayments()
+    {
+        return $this->hasMany(Payment::class, ['bill_id' => 'id'])->orderBy(['paid_at' => SORT_ASC, 'id' => SORT_ASC]);
+    }
 }
