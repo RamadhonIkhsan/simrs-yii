@@ -11,6 +11,7 @@ use app\components\MasterControllerTrait;
 use app\models\AuditLog;
 use app\models\Doctor;
 use app\models\DoctorSchedule;
+use app\models\Examination;
 use app\models\Patient;
 use app\models\Poli;
 use app\models\Visit;
@@ -46,6 +47,7 @@ class VisitsController extends Controller
                     'view'   => ['GET'],
                     'create' => ['POST'],
                     'status' => ['PUT', 'PATCH'],
+                    'finish' => ['POST'],
                 ],
             ],
         ];
@@ -340,6 +342,69 @@ class VisitsController extends Controller
             ['status' => $oldStatus],
             ['status' => $newStatus],
             $reason !== '' ? $reason : null
+        );
+
+        return [
+            'rc'   => 200,
+            'rm'   => 'Berhasil',
+            'data' => $this->dataVisit($visit),
+        ];
+    }
+
+    public function actionFinish(int $id): array
+    {
+        $denied = $this->requireRoles(['DOCTOR']);
+        if ($denied !== null) {
+            return $denied;
+        }
+
+        $visit = Visit::find()
+            ->with(['patient', 'poli', 'doctor', 'schedule'])
+            ->where(['id' => $id])
+            ->one();
+
+        if (!$visit) {
+            return [
+                'rc'   => 404,
+                'rm'   => 'Data kunjungan tidak ditemukan',
+                'data' => null,
+            ];
+        }
+
+        $ownCheck = DoctorContext::assertOwnsVisit((int)$visit->doctor_id);
+        if ($ownCheck !== null) {
+            return $ownCheck;
+        }
+
+        if ($visit->status !== Visit::STATUS_EXAMINING) {
+            return [
+                'rc'   => 409,
+                'rm'   => "Kunjungan hanya dapat diselesaikan dari status EXAMINING (status saat ini: {$visit->status})",
+                'data' => null,
+            ];
+        }
+
+        $exam = Examination::findOne(['visit_id' => $id]);
+        if (!$exam || $exam->status !== Examination::STATUS_FINAL) {
+            return [
+                'rc'   => 422,
+                'rm'   => 'Finalisasi pemeriksaan terlebih dahulu',
+                'data' => null,
+            ];
+        }
+
+        $oldStatus = (string)$visit->status;
+        $visit->status = Visit::STATUS_DONE;
+        $visit->updated_at = date('Y-m-d H:i:s');
+        $visit->updated_by = Yii::$app->user->id !== null ? (int)Yii::$app->user->id : null;
+        $visit->save(false);
+
+        AuditLog::log(
+            'visits',
+            $id,
+            'STATUS_CHANGE',
+            ['status' => $oldStatus],
+            ['status' => Visit::STATUS_DONE]
         );
 
         return [

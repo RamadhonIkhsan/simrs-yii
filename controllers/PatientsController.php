@@ -8,6 +8,8 @@ use Yii;
 use app\components\JwtAuth;
 use app\components\MasterControllerTrait;
 use app\models\AuditLog;
+use app\models\Diagnosis;
+use app\models\Examination;
 use app\models\Patient;
 use app\models\Visit;
 use DateTime;
@@ -44,6 +46,7 @@ class PatientsController extends Controller
                     'delete'          => ['DELETE'],
                     'check-duplicate' => ['POST'],
                     'visits'          => ['GET'],
+                    'medical-records' => ['GET'],
                 ],
             ],
         ];
@@ -470,6 +473,76 @@ class PatientsController extends Controller
                     'specialty' => $v->doctor->specialty,
                 ] : null,
                 'created_at'       => $v->created_at,
+            ];
+        });
+    }
+
+    public function actionMedicalRecords(int $id): array
+    {
+        $denied = $this->requireRoles(['DOCTOR']);
+        if ($denied !== null) {
+            return $denied;
+        }
+
+        $patient = Patient::findOne(['id' => $id, 'deleted_at' => null]);
+        if (!$patient) {
+            return [
+                'rc'   => 404,
+                'rm'   => 'Data pasien tidak ditemukan',
+                'data' => null,
+            ];
+        }
+
+        $query = Examination::find()
+            ->alias('e')
+            ->with(['visit.poli', 'doctor', 'vitalSign', 'diagnoses.icd10'])
+            ->innerJoin('{{%visits}} v', 'v.id = e.visit_id')
+            ->where([
+                'v.patient_id' => $id,
+                'e.status'     => Examination::STATUS_FINAL,
+            ]);
+
+        $orderBy = [
+            'v.visit_date'   => SORT_DESC,
+            'e.finalized_at' => SORT_DESC,
+            'e.id'           => SORT_DESC,
+        ];
+
+        return $this->buildPagedResponse($query, $orderBy, function (Examination $e): array {
+            $primaryDiag = null;
+            foreach ($e->diagnoses as $d) {
+                if ($d->type === Diagnosis::TYPE_PRIMARY) {
+                    $primaryDiag = [
+                        'icd10_code' => $d->icd10_code,
+                        'icd10_name' => $d->icd10 ? $d->icd10->name : null,
+                        'notes'      => $d->notes,
+                    ];
+                    break;
+                }
+            }
+
+            $v = $e->visit;
+
+            return [
+                'examination_id'    => (int)$e->id,
+                'visit_id'          => (int)$e->visit_id,
+                'visit_date'        => $v ? $v->visit_date : null,
+                'visit_no'          => $v ? $v->visit_no : null,
+                'poli'              => ($v && $v->poli) ? [
+                    'id'   => (int)$v->poli->id,
+                    'code' => $v->poli->code,
+                    'name' => $v->poli->name,
+                ] : null,
+                'doctor'            => $e->doctor ? [
+                    'id'        => (int)$e->doctor->id,
+                    'full_name' => $e->doctor->full_name,
+                    'specialty' => $e->doctor->specialty,
+                ] : null,
+                'complaint'         => $e->complaint,
+                'primary_diagnosis' => $primaryDiag,
+                'vital_sign'        => $e->vitalSign ? $e->vitalSign->toArraySummary() : null,
+                'version'           => (int)$e->version,
+                'finalized_at'      => $e->finalized_at,
             ];
         });
     }
