@@ -204,6 +204,12 @@ $config = [
                 'POST visits/<id:\d+>/examination/start' => 'examinations/start',
                 'POST api/visits/<id:\d+>/finish' => 'visits/finish',
                 'POST visits/<id:\d+>/finish' => 'visits/finish',
+                'GET api/visits/<id:\d+>/procedures' => 'visit-procedures/index',
+                'GET visits/<id:\d+>/procedures' => 'visit-procedures/index',
+                'POST api/visits/<id:\d+>/procedures' => 'visit-procedures/create',
+                'POST visits/<id:\d+>/procedures' => 'visit-procedures/create',
+                'POST api/visits/<id:\d+>/procedures/<vpId:\d+>/void' => 'visit-procedures/void',
+                'POST visits/<id:\d+>/procedures/<vpId:\d+>/void' => 'visit-procedures/void',
 
                 'GET api/queues' => 'queues/index',
                 'GET queues' => 'queues/index',

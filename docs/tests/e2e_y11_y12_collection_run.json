@@ -1,0 +1,81 @@
+{
+    "collection_run": "Y11 & Y12 End-to-End Clinical Flow (F.4 / F.5)",
+    "executed_at": "2026-11-23T15:38:26+07:00",
+    "patient_id": 21,
+    "visit_id": 24,
+    "examination_id": 8,
+    "steps": [
+        {
+            "step": "1. POST /api/login (Dokter)",
+            "rc": 200,
+            "username": "usr_doctor_prcA_1824",
+            "token_received": true
+        },
+        {
+            "step": "2. GET /api/examinations/waiting",
+            "rc": 200,
+            "waiting_count": 2
+        },
+        {
+            "step": "3. POST /api/visits/24/examination/start",
+            "rc": 200,
+            "examination_id": 8,
+            "status": "DRAFT",
+            "visit_status": "EXAMINING"
+        },
+        {
+            "step": "4. PUT /api/examinations/8 (Draft)",
+            "rc": 200,
+            "diagnoses_count": 2,
+            "temperature": 38.1
+        },
+        {
+            "step": "5. POST /api/visits/24/procedures (2 item)",
+            "rc": 200,
+            "active_count": 2,
+            "total_tariff": 160000
+        },
+        {
+            "step": "6. POST /api/examinations/8/finalize",
+            "rc": 200,
+            "status": "FINAL",
+            "finalized_at": "2026-11-23 15:38:23"
+        },
+        {
+            "step": "7. POST /api/visits/24/finish",
+            "rc": 200,
+            "visit_status": "DONE"
+        },
+        {
+            "step": "8. GET /api/examinations/8",
+            "rc": 200,
+            "procedures_loaded": 2,
+            "version": 1
+        },
+        {
+            "step": "9. POST /api/examinations/8/revise",
+            "rc": 200,
+            "new_version": 2,
+            "diagnoses": [
+                "J00",
+                "K29.7"
+            ]
+        },
+        {
+            "step": "10. GET /api/examinations/8/revisions (& /revisions/1)",
+            "rc": 200,
+            "revision_count": 1,
+            "v1_diagnoses": [
+                "J00",
+                "R50.9"
+            ]
+        },
+        {
+            "step": "11. GET /api/patients/21/medical-records",
+            "rc": 0,
+            "totalElements": 1,
+            "primary_diagnosis": "J00",
+            "record_version": 2
+        }
+    ]
+}
