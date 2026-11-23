@@ -6,9 +6,13 @@ namespace app\controllers;
 
 use Yii;
 use app\components\JwtAuth;
+use app\components\JwtHelper;
 use app\components\MasterControllerTrait;
+use app\models\AuditLog;
 use app\models\Bill;
+use app\models\User;
 use app\services\billing\BillingService;
+use app\services\billing\InvoiceBuilder;
 use yii\filters\ContentNegotiator;
 use yii\filters\VerbFilter;
 use yii\web\Controller;
@@ -31,13 +35,15 @@ class BillsController extends Controller
     {
         return [
             'contentNegotiator' => [
-                'class' => ContentNegotiator::class,
+                'class'  => ContentNegotiator::class,
+                'except' => ['invoice-html'],
                 'formats' => [
                     'application/json' => Response::FORMAT_JSON,
                 ],
             ],
             'authenticator' => [
-                'class' => JwtAuth::class,
+                'class'    => JwtAuth::class,
+                'optional' => ['invoice-html'],
             ],
             'verbs' => [
                 'class' => VerbFilter::class,
@@ -48,6 +54,9 @@ class BillsController extends Controller
                     'create-for-visit'  => ['POST'],
                     'issue'             => ['POST'],
                     'cancel'            => ['POST'],
+                    'print-link'        => ['POST'],
+                    'invoice'           => ['GET'],
+                    'invoice-html'      => ['GET'],
                 ],
             ],
         ];
@@ -97,7 +106,7 @@ class BillsController extends Controller
         }
 
         $bill = Bill::find()
-            ->with(['visit', 'visit.poli', 'visit.doctor', 'patient', 'items'])
+            ->with(['visit', 'visit.poli', 'visit.doctor', 'patient', 'items', 'payments'])
             ->where(['visit_id' => $id])
             ->one();
 
@@ -213,7 +222,7 @@ class BillsController extends Controller
         }
 
         $bill = Bill::find()
-            ->with(['visit', 'visit.poli', 'visit.doctor', 'patient', 'items'])
+            ->with(['visit', 'visit.poli', 'visit.doctor', 'patient', 'items', 'payments'])
             ->where(['id' => $id])
             ->one();
 
@@ -287,6 +296,192 @@ class BillsController extends Controller
             ];
         } catch (HttpException $e) {
             Yii::$app->response->statusCode = $e->statusCode;
+            return [
+                'rc'   => $e->statusCode,
+                'rm'   => $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function actionPrintLink(int $id): array
+    {
+        $denied = $this->requireRoles(['CASHIER', 'ADMIN']);
+        if ($denied !== null) {
+            return $denied;
+        }
+
+        $bill = Bill::findOne($id);
+        if (!$bill) {
+            Yii::$app->response->statusCode = 404;
+            return [
+                'rc'   => 404,
+                'rm'   => 'Data tagihan tidak ditemukan',
+                'data' => null,
+            ];
+        }
+
+        if ($bill->status === Bill::STATUS_DRAFT) {
+            Yii::$app->response->statusCode = 409;
+            return [
+                'rc'   => 409,
+                'rm'   => 'Tagihan belum diterbitkan',
+                'data' => null,
+            ];
+        }
+
+        if ($bill->status === Bill::STATUS_CANCELLED) {
+            Yii::$app->response->statusCode = 409;
+            return [
+                'rc'   => 409,
+                'rm'   => 'Tagihan sudah dibatalkan',
+                'data' => null,
+            ];
+        }
+
+        $ttl = (int)(Yii::$app->params['printTokenTtl'] ?? 60);
+        $userId = (int)Yii::$app->user->id;
+
+        $token = JwtHelper::generateToken([
+            'scope' => 'print',
+            'doc'   => 'invoice',
+            'id'    => $id,
+            'sub'   => $userId,
+        ], $ttl);
+
+        $url = "/api/bills/{$id}/invoice.html?pt={$token}";
+
+        return [
+            'rc'   => 200,
+            'rm'   => 'Berhasil',
+            'data' => [
+                'url'        => $url,
+                'expires_in' => $ttl,
+            ],
+        ];
+    }
+
+    public function actionInvoice(int $id): array
+    {
+        $denied = $this->requireRoles(['CASHIER', 'ADMIN']);
+        if ($denied !== null) {
+            return $denied;
+        }
+
+        try {
+            $builder = new InvoiceBuilder();
+            $data = $builder->build($id, (int)Yii::$app->user->id);
+
+            return [
+                'rc'   => 200,
+                'rm'   => 'Berhasil',
+                'data' => $data,
+            ];
+        } catch (HttpException $e) {
+            Yii::$app->response->statusCode = $e->statusCode;
+            return [
+                'rc'   => $e->statusCode,
+                'rm'   => $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function actionInvoiceHtml(int $id): mixed
+    {
+        $request = Yii::$app->request;
+        $pt = $request->get('pt');
+
+        $actorUserId = null;
+
+        if (!empty($pt)) {
+            $payload = JwtHelper::validateToken((string)$pt);
+            if ($payload === null) {
+                Yii::$app->response->statusCode = 401;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 401,
+                    'rm'   => 'Token cetak tidak valid atau sudah kedaluwarsa',
+                    'data' => null,
+                ];
+            }
+
+            if (($payload['scope'] ?? '') !== 'print') {
+                Yii::$app->response->statusCode = 401;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 401,
+                    'rm'   => 'Scope token cetak tidak valid',
+                    'data' => null,
+                ];
+            }
+
+            if (($payload['doc'] ?? '') !== 'invoice' || (int)($payload['id'] ?? 0) !== $id) {
+                Yii::$app->response->statusCode = 403;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 403,
+                    'rm'   => 'Akses ditolak: Dokumen atau ID cetak tidak sesuai',
+                    'data' => null,
+                ];
+            }
+
+            $actorUserId = (int)($payload['sub'] ?? $payload['uid'] ?? 0);
+        } else {
+            $user = Yii::$app->user->identity;
+            if (!$user) {
+                $authHeader = $request->headers->get('Authorization');
+                if ($authHeader && preg_match('/^Bearer\s+(.*?)$/', $authHeader, $matches)) {
+                    $user = User::findIdentityByAccessToken($matches[1]);
+                }
+            }
+
+            if (!$user) {
+                Yii::$app->response->statusCode = 401;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 401,
+                    'rm'   => 'Otentikasi diperlukan untuk mencetak dokumen',
+                    'data' => null,
+                ];
+            }
+
+            $roleCode = $user->role?->code;
+            if (!in_array($roleCode, ['CASHIER', 'ADMIN'], true)) {
+                Yii::$app->response->statusCode = 403;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 403,
+                    'rm'   => 'Akses ditolak: Anda tidak memiliki hak akses untuk aksi ini',
+                    'data' => null,
+                ];
+            }
+
+            $actorUserId = (int)$user->id;
+        }
+
+        try {
+            $builder = new InvoiceBuilder();
+            $data = $builder->build($id, $actorUserId, true);
+
+            AuditLog::log('bills', $id, 'PRINT', null, null, null, $actorUserId);
+
+            $autoprint = $request->get('autoprint') === '1';
+
+            Yii::$app->response->format = Response::FORMAT_RAW;
+            Yii::$app->response->headers->set('Content-Type', 'text/html; charset=UTF-8');
+            Yii::$app->response->headers->set('Cache-Control', 'no-store');
+            Yii::$app->response->headers->set('X-Content-Type-Options', 'nosniff');
+
+            return $this->renderFile('@app/views/print/_layout.php', [
+                'title'     => 'Invoice - ' . ($data['header']['bill_no'] ?? ''),
+                'content'   => $this->renderFile('@app/views/print/invoice.php', ['data' => $data]),
+                'autoprint' => $autoprint,
+                'pageType'  => 'a4',
+            ]);
+        } catch (HttpException $e) {
+            Yii::$app->response->statusCode = $e->statusCode;
+            Yii::$app->response->format = Response::FORMAT_JSON;
             return [
                 'rc'   => $e->statusCode,
                 'rm'   => $e->getMessage(),

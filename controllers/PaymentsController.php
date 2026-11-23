@@ -6,10 +6,14 @@ namespace app\controllers;
 
 use Yii;
 use app\components\JwtAuth;
+use app\components\JwtHelper;
 use app\components\MasterControllerTrait;
+use app\models\AuditLog;
 use app\models\Bill;
 use app\models\Payment;
+use app\models\User;
 use app\services\billing\PaymentService;
+use app\services\billing\ReceiptBuilder;
 use yii\filters\ContentNegotiator;
 use yii\filters\VerbFilter;
 use yii\web\Controller;
@@ -32,13 +36,15 @@ class PaymentsController extends Controller
     {
         return [
             'contentNegotiator' => [
-                'class' => ContentNegotiator::class,
+                'class'  => ContentNegotiator::class,
+                'except' => ['receipt-html'],
                 'formats' => [
                     'application/json' => Response::FORMAT_JSON,
                 ],
             ],
             'authenticator' => [
-                'class' => JwtAuth::class,
+                'class'    => JwtAuth::class,
+                'optional' => ['receipt-html'],
             ],
             'verbs' => [
                 'class' => VerbFilter::class,
@@ -49,6 +55,9 @@ class PaymentsController extends Controller
                     'view'             => ['GET'],
                     'index-by-patient' => ['GET'],
                     'void'             => ['POST'],
+                    'print-link'       => ['POST'],
+                    'receipt'          => ['GET'],
+                    'receipt-html'     => ['GET'],
                 ],
             ],
         ];
@@ -197,7 +206,6 @@ class PaymentsController extends Controller
             ]);
         }
 
-        // Summary total_success_amount on filtered query
         $summaryQuery = (clone $query)->andWhere(['p.status' => Payment::STATUS_SUCCESS]);
         $totalSuccessAmount = (float)$summaryQuery->sum('p.amount');
 
@@ -315,6 +323,183 @@ class PaymentsController extends Controller
             ];
         } catch (HttpException $e) {
             Yii::$app->response->statusCode = $e->statusCode;
+            return [
+                'rc'   => $e->statusCode,
+                'rm'   => $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function actionPrintLink(int $id): array
+    {
+        $denied = $this->requireRoles(['CASHIER', 'ADMIN']);
+        if ($denied !== null) {
+            return $denied;
+        }
+
+        $payment = Payment::findOne($id);
+        if (!$payment) {
+            Yii::$app->response->statusCode = 404;
+            return [
+                'rc'   => 404,
+                'rm'   => 'Data pembayaran tidak ditemukan',
+                'data' => null,
+            ];
+        }
+
+        if ($payment->status === Payment::STATUS_VOIDED) {
+            Yii::$app->response->statusCode = 409;
+            return [
+                'rc'   => 409,
+                'rm'   => 'Pembayaran telah dibatalkan',
+                'data' => null,
+            ];
+        }
+
+        $ttl = (int)(Yii::$app->params['printTokenTtl'] ?? 60);
+        $userId = (int)Yii::$app->user->id;
+
+        $token = JwtHelper::generateToken([
+            'scope' => 'print',
+            'doc'   => 'receipt',
+            'id'    => $id,
+            'sub'   => $userId,
+        ], $ttl);
+
+        $url = "/api/payments/{$id}/receipt.html?pt={$token}";
+
+        return [
+            'rc'   => 200,
+            'rm'   => 'Berhasil',
+            'data' => [
+                'url'        => $url,
+                'expires_in' => $ttl,
+            ],
+        ];
+    }
+
+    public function actionReceipt(int $id): array
+    {
+        $denied = $this->requireRoles(['CASHIER', 'ADMIN']);
+        if ($denied !== null) {
+            return $denied;
+        }
+
+        try {
+            $builder = new ReceiptBuilder();
+            $data = $builder->build($id, (int)Yii::$app->user->id);
+
+            return [
+                'rc'   => 200,
+                'rm'   => 'Berhasil',
+                'data' => $data,
+            ];
+        } catch (HttpException $e) {
+            Yii::$app->response->statusCode = $e->statusCode;
+            return [
+                'rc'   => $e->statusCode,
+                'rm'   => $e->getMessage(),
+                'data' => null,
+            ];
+        }
+    }
+
+    public function actionReceiptHtml(int $id): mixed
+    {
+        $request = Yii::$app->request;
+        $pt = $request->get('pt');
+
+        $actorUserId = null;
+
+        if (!empty($pt)) {
+            $payload = JwtHelper::validateToken((string)$pt);
+            if ($payload === null) {
+                Yii::$app->response->statusCode = 401;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 401,
+                    'rm'   => 'Token cetak tidak valid atau sudah kedaluwarsa',
+                    'data' => null,
+                ];
+            }
+
+            if (($payload['scope'] ?? '') !== 'print') {
+                Yii::$app->response->statusCode = 401;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 401,
+                    'rm'   => 'Scope token cetak tidak valid',
+                    'data' => null,
+                ];
+            }
+
+            if (($payload['doc'] ?? '') !== 'receipt' || (int)($payload['id'] ?? 0) !== $id) {
+                Yii::$app->response->statusCode = 403;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 403,
+                    'rm'   => 'Akses ditolak: Dokumen atau ID cetak tidak sesuai',
+                    'data' => null,
+                ];
+            }
+
+            $actorUserId = (int)($payload['sub'] ?? $payload['uid'] ?? 0);
+        } else {
+            $user = Yii::$app->user->identity;
+            if (!$user) {
+                $authHeader = $request->headers->get('Authorization');
+                if ($authHeader && preg_match('/^Bearer\s+(.*?)$/', $authHeader, $matches)) {
+                    $user = User::findIdentityByAccessToken($matches[1]);
+                }
+            }
+
+            if (!$user) {
+                Yii::$app->response->statusCode = 401;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 401,
+                    'rm'   => 'Otentikasi diperlukan untuk mencetak dokumen',
+                    'data' => null,
+                ];
+            }
+
+            $roleCode = $user->role?->code;
+            if (!in_array($roleCode, ['CASHIER', 'ADMIN'], true)) {
+                Yii::$app->response->statusCode = 403;
+                Yii::$app->response->format = Response::FORMAT_JSON;
+                return [
+                    'rc'   => 403,
+                    'rm'   => 'Akses ditolak: Anda tidak memiliki hak akses untuk aksi ini',
+                    'data' => null,
+                ];
+            }
+
+            $actorUserId = (int)$user->id;
+        }
+
+        try {
+            $builder = new ReceiptBuilder();
+            $data = $builder->build($id, $actorUserId);
+
+            AuditLog::log('payments', $id, 'PRINT', null, null, null, $actorUserId);
+
+            $autoprint = $request->get('autoprint') === '1';
+
+            Yii::$app->response->format = Response::FORMAT_RAW;
+            Yii::$app->response->headers->set('Content-Type', 'text/html; charset=UTF-8');
+            Yii::$app->response->headers->set('Cache-Control', 'no-store');
+            Yii::$app->response->headers->set('X-Content-Type-Options', 'nosniff');
+
+            return $this->renderFile('@app/views/print/_layout.php', [
+                'title'     => 'Kuitansi - ' . ($data['header']['payment_no'] ?? ''),
+                'content'   => $this->renderFile('@app/views/print/receipt.php', ['data' => $data]),
+                'autoprint' => $autoprint,
+                'pageType'  => 'receipt80',
+            ]);
+        } catch (HttpException $e) {
+            Yii::$app->response->statusCode = $e->statusCode;
+            Yii::$app->response->format = Response::FORMAT_JSON;
             return [
                 'rc'   => $e->statusCode,
                 'rm'   => $e->getMessage(),

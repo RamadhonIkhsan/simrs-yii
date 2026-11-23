@@ -103,7 +103,7 @@ class User extends ActiveRecord implements IdentityInterface
     public static function findIdentityByAccessToken($token, $type = null): ?static
     {
         $payload = \app\components\JwtHelper::validateToken((string)$token);
-        if ($payload === null || empty($payload['uid'])) {
+        if ($payload === null || empty($payload['uid']) || (isset($payload['scope']) && $payload['scope'] === 'print')) {
             return null;
         }
 
