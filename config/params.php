@@ -1,14 +1,9 @@
 <?php
 
 return [
-    'adminEmail' => 'admin@example.com',
-    'senderEmail' => 'noreply@example.com',
-    'senderName' => 'Example.com mailer',
-    'hospital' => [
-        'name' => 'RS Graha Sehat Medika',
-        'address' => 'Jl. Kesehatan No. 123, Jakarta Pusat',
-        'phone' => '(021) 555-1234',
-        'email' => 'info@rsgrahasehat.co.id',
-    ],
-    'printTokenTtl' => 60,
+    'jwtSecret' => $_ENV['JWT_SECRET'] ?? 'fallback_dev_secret',
+    'jwtAlgorithm' => $_ENV['JWT_ALGORITHM'] ?? 'HS256',
+    'jwtExpire' => (int) ($_ENV['JWT_EXPIRE'] ?? 86400),
+    'internalServiceKey' => $_ENV['INTERNAL_SERVICE_KEY'] ?? '',
+    'nodeServiceUrl' => $_ENV['NODE_SERVICE_URL'] ?? 'http://127.0.0.1:3001',
 ];
