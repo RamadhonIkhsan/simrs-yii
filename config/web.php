@@ -26,7 +26,63 @@ $config = [
         '@bower' => '@vendor/bower-asset',
         '@npm'   => '@vendor/npm-asset',
     ],
+    'on beforeRequest' => function () {
+        $request = Yii::$app->request;
+        $origin = $request->headers->get('Origin');
+        $allowedOrigins = [
+            'http://localhost:5173',
+            'http://127.0.0.1:5173',
+            'http://localhost:3001',
+            'http://127.0.0.1:3001',
+        ];
+
+        if ($request->isOptions) {
+            $response = Yii::$app->response;
+            if ($origin && in_array($origin, $allowedOrigins, true)) {
+                $response->headers->set('Access-Control-Allow-Origin', $origin);
+                $response->headers->set('Access-Control-Allow-Credentials', 'true');
+                $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS');
+                $reqHeaders = $request->headers->get('Access-Control-Request-Headers');
+                $response->headers->set('Access-Control-Allow-Headers', $reqHeaders ?: 'Authorization, Content-Type, Accept, X-Requested-With, Origin, Idempotency-Key, pt');
+                $response->headers->set('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type, Authorization');
+                $response->headers->set('Access-Control-Max-Age', '86400');
+                $response->headers->set('Vary', 'Origin');
+            }
+            $response->statusCode = 200;
+            $response->data = null;
+            if (!headers_sent()) {
+                $response->send();
+            }
+            if (PHP_SAPI !== 'cli') {
+                exit(0);
+            }
+        }
+    },
     'components' => [
+        'response' => [
+            'on beforeSend' => function ($event) {
+                $request = Yii::$app->request;
+                $response = $event->sender;
+                $origin = $request->headers->get('Origin');
+                $allowedOrigins = [
+                    'http://localhost:5173',
+                    'http://127.0.0.1:5173',
+                    'http://localhost:3001',
+                    'http://127.0.0.1:3001',
+                ];
+
+                if ($origin && in_array($origin, $allowedOrigins, true)) {
+                    $response->headers->set('Access-Control-Allow-Origin', $origin);
+                    $response->headers->set('Access-Control-Allow-Credentials', 'true');
+                    $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS');
+                    $reqHeaders = $request->headers->get('Access-Control-Request-Headers');
+                    $response->headers->set('Access-Control-Allow-Headers', $reqHeaders ?: 'Authorization, Content-Type, Accept, X-Requested-With, Origin, Idempotency-Key, pt');
+                    $response->headers->set('Access-Control-Expose-Headers', 'Content-Disposition, Content-Type, Authorization');
+                    $response->headers->set('Access-Control-Max-Age', '86400');
+                    $response->headers->set('Vary', 'Origin');
+                }
+            },
+        ],
         'request' => [
             // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
             'cookieValidationKey' => 'BkrrO4qLRMRF-VqRW20OI0JhBphbF8Z8',
