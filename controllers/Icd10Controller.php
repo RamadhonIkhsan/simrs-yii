@@ -157,6 +157,7 @@ class Icd10Controller extends Controller
             }
         }
 
+
         $icd = new Icd10();
         $icd->code = $code;
         $icd->name = $params['name'] ?? null;
