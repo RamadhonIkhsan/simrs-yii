@@ -26,9 +26,7 @@ use yii\web\IdentityInterface;
  */
 class User extends ActiveRecord implements IdentityInterface
 {
-    /**
-     * @var string|null Virtual property untuk menampung nama role dari JOIN query
-     */
+    public ?int $role_id = null;
     public ?string $role_name = null;
 
     /**
@@ -61,6 +59,24 @@ class User extends ActiveRecord implements IdentityInterface
     public function getRole()
     {
         return $this->hasOne(Role::class, ['id' => 'roles']);
+    }
+
+    public function afterFind(): void
+    {
+        parent::afterFind();
+
+        if ($this->role_id === null && $this->roles !== null) {
+            $this->role_id = (int)$this->roles;
+        }
+
+        if ($this->role_name === null && $this->roles !== null) {
+            $this->role_name = $this->role?->name;
+        }
+    }
+
+    public function getRoleCode(): ?string
+    {
+        return $this->role?->code;
     }
 
     /**
@@ -123,6 +139,13 @@ class User extends ActiveRecord implements IdentityInterface
     public static function findByUsername(string $username): ?static
     {
         return static::find()
+            ->alias('u')
+            ->select([
+                'u.*',
+                'r.id as role_id',
+                'r.name as role_name'
+            ])
+            ->leftJoin('roles r', 'r.id = u.roles')
             ->where(['ILIKE', 'username', $username])
             ->andWhere(['deleted_at' => null])
             ->one();

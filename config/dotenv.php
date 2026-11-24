@@ -43,9 +43,11 @@ if (!function_exists('loadEnv')) {
                     $value = substr($value, 1, -1);
                 }
 
-                putenv("{$key}={$value}");
-                $_ENV[$key] = $value;
-                $_SERVER[$key] = $value;
+                if (getenv($key) === false && !isset($_ENV[$key]) && !isset($_SERVER[$key])) {
+                    putenv("{$key}={$value}");
+                    $_ENV[$key] = $value;
+                    $_SERVER[$key] = $value;
+                }
             }
         }
     }

@@ -142,9 +142,12 @@ class SiteController extends Controller
             ];
         }
 
+
         $token = \app\components\JwtHelper::generateToken([
             'uid' => (int)$user->id,
             'username' => $user->username,
+            'role_id' => $user->role_id,
+            'role_name' => $user->role_name,
         ]);
 
         $user->last_login_at = date('Y-m-d H:i:s');

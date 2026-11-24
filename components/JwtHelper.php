@@ -8,14 +8,16 @@ use Yii;
 
 class JwtHelper
 {
-    /**
-     * Get secret key for JWT HMAC signing.
-     */
+    
     private static function getSecret(): string
     {
         $secret = env('JWT_SECRET');
         if (!empty($secret)) {
             return (string)$secret;
+        }
+
+        if (!empty(Yii::$app->params['jwtSecret'])) {
+            return (string)Yii::$app->params['jwtSecret'];
         }
 
         if (!empty(Yii::$app->request->cookieValidationKey)) {
@@ -24,14 +26,7 @@ class JwtHelper
 
         return 'simrs-yii-jwt-secret-key-2026';
     }
-
-    /**
-     * Generate standard JWT token.
-     *
-     * @param array $payload
-     * @param int $ttl Time to live in seconds (default: 7 days)
-     * @return string
-     */
+    
     public static function generateToken(array $payload, int $ttl = 604800): string
     {
         $header = [
