@@ -73,7 +73,7 @@ class DoctorsController extends Controller
             $offset = $displayPage * $size;
         }
 
-        $query = Doctor::find()->with(['user'])->where(['deleted_at' => null]);
+        $query = Doctor::find()->with(['user']);
 
         if ($search !== '') {
             $query->andWhere([
@@ -125,7 +125,7 @@ class DoctorsController extends Controller
     {
         $doctors = Doctor::find()
             ->select(['id', 'full_name', 'specialty'])
-            ->where(['is_active' => true, 'deleted_at' => null])
+            ->where(['is_active' => true])
             ->orderBy(['full_name' => SORT_ASC])
             ->asArray()
             ->all();
@@ -150,7 +150,7 @@ class DoctorsController extends Controller
     {
         $doctor = Doctor::find()
             ->with(['user'])
-            ->where(['id' => $id, 'deleted_at' => null])
+            ->where(['id' => $id])
             ->one();
 
         if (!$doctor) {
@@ -187,7 +187,7 @@ class DoctorsController extends Controller
 
         if ($strNo !== '') {
             $existsStr = Doctor::find()
-                ->where(['str_no' => $strNo, 'deleted_at' => null])
+                ->where(['str_no' => $strNo])
                 ->exists();
             if ($existsStr) {
                 return [
@@ -200,7 +200,7 @@ class DoctorsController extends Controller
 
         if ($nip !== null) {
             $existsNip = Doctor::find()
-                ->where(['nip' => $nip, 'deleted_at' => null])
+                ->where(['nip' => $nip])
                 ->exists();
             if ($existsNip) {
                 return [
@@ -261,7 +261,7 @@ class DoctorsController extends Controller
     {
         $doctor = Doctor::find()
             ->with(['user'])
-            ->where(['id' => $id, 'deleted_at' => null])
+            ->where(['id' => $id])
             ->one();
 
         if (!$doctor) {
@@ -283,7 +283,7 @@ class DoctorsController extends Controller
         if (isset($params['str_no'])) {
             $newStr = trim((string)$params['str_no']);
             $existsStr = Doctor::find()
-                ->where(['str_no' => $newStr, 'deleted_at' => null])
+                ->where(['str_no' => $newStr])
                 ->andWhere(['!=', 'id', $id])
                 ->exists();
             if ($existsStr) {
@@ -300,7 +300,7 @@ class DoctorsController extends Controller
             $newNip = trim((string)$params['nip']);
             if ($newNip !== '') {
                 $existsNip = Doctor::find()
-                    ->where(['nip' => $newNip, 'deleted_at' => null])
+                    ->where(['nip' => $newNip])
                     ->andWhere(['!=', 'id', $id])
                     ->exists();
                 if ($existsNip) {
@@ -375,7 +375,7 @@ class DoctorsController extends Controller
     {
         $doctor = Doctor::find()
             ->with(['user'])
-            ->where(['id' => $id, 'deleted_at' => null])
+            ->where(['id' => $id])
             ->one();
 
         if (!$doctor) {
@@ -415,13 +415,15 @@ class DoctorsController extends Controller
 
         $oldValues = $this->dataDoctor($doctor);
 
-        $now = date('Y-m-d H:i:s');
-        $currentUserId = Yii::$app->user->id !== null ? (int)Yii::$app->user->id : null;
-
-        $doctor->deleted_at = $now;
-        $doctor->updated_at = $now;
-        $doctor->updated_by = $currentUserId;
-        $doctor->save(false);
+        try {
+            $doctor->delete();
+        } catch (\yii\db\IntegrityException $e) {
+            return [
+                'rc'   => 409,
+                'rm'   => 'Dokter tidak dapat dihapus karena masih terkait dengan data lain',
+                'data' => null,
+            ];
+        }
 
         AuditLog::log('doctors', (int)$doctor->id, 'DELETE', $oldValues, null);
 
@@ -434,7 +436,7 @@ class DoctorsController extends Controller
 
     private function validateUserForDoctor(int $userId, ?int $currentDoctorId = null): ?array
     {
-        $userAccount = User::findOne(['id' => $userId, 'is_active' => true, 'deleted_at' => null]);
+        $userAccount = User::findOne(['id' => $userId, 'is_active' => true]);
         if (!$userAccount) {
             return [
                 'rc' => 422,
@@ -457,7 +459,7 @@ class DoctorsController extends Controller
         }
 
         $queryLinked = Doctor::find()
-            ->where(['user_id' => $userId, 'deleted_at' => null]);
+            ->where(['user_id' => $userId]);
 
         if ($currentDoctorId !== null) {
             $queryLinked->andWhere(['!=', 'id', $currentDoctorId]);

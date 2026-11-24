@@ -171,9 +171,8 @@ class VisitProceduresController extends Controller
 
             $procId = (int)$procIdRaw;
             $procedure = Procedure::findOne([
-                'id'         => $procId,
-                'is_active'  => true,
-                'deleted_at' => null,
+                'id'        => $procId,
+                'is_active' => true,
             ]);
 
             if (!$procedure) {

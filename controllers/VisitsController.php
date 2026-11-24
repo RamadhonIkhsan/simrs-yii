@@ -427,7 +427,7 @@ class VisitsController extends Controller
         $transaction = $db->beginTransaction();
 
         try {
-            $patient = Patient::findOne(['id' => $patientId, 'deleted_at' => null]);
+            $patient = Patient::findOne(['id' => $patientId]);
             if (!$patient) {
                 $transaction->rollBack();
                 return [
@@ -437,7 +437,7 @@ class VisitsController extends Controller
                 ];
             }
 
-            $poli = Poli::findOne(['id' => $poliId, 'is_active' => true, 'deleted_at' => null]);
+            $poli = Poli::findOne(['id' => $poliId, 'is_active' => true]);
             if (!$poli) {
                 $transaction->rollBack();
                 return [
@@ -447,7 +447,7 @@ class VisitsController extends Controller
                 ];
             }
 
-            $doctor = Doctor::findOne(['id' => $doctorId, 'is_active' => true, 'deleted_at' => null]);
+            $doctor = Doctor::findOne(['id' => $doctorId, 'is_active' => true]);
             if (!$doctor) {
                 $transaction->rollBack();
                 return [

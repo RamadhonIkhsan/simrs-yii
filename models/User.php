@@ -22,7 +22,6 @@ use yii\web\IdentityInterface;
  * @property int|null $created_by
  * @property string $updated_at
  * @property int|null $updated_by
- * @property string|null $deleted_at
  */
 class User extends ActiveRecord implements IdentityInterface
 {
@@ -46,10 +45,10 @@ class User extends ActiveRecord implements IdentityInterface
             [['username', 'roles', 'password_hash', 'full_name'], 'required'],
             [['is_active'], 'boolean'],
             [['email'], 'email'],
-            [['last_login_at', 'created_at', 'updated_at', 'deleted_at'], 'safe'],
+            [['last_login_at', 'created_at', 'updated_at'], 'safe'],
             [['roles', 'created_by', 'updated_by'], 'integer'],
             [['username', 'email', 'password_hash', 'full_name'], 'string', 'max' => 255],
-            [['username'], 'unique', 'filter' => ['deleted_at' => null]],
+            [['username'], 'unique'],
         ];
     }
 
@@ -110,7 +109,7 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public static function findIdentity($id): ?static
     {
-        return static::findOne(['id' => $id, 'deleted_at' => null]);
+        return static::findOne(['id' => $id]);
     }
 
     /**
@@ -126,7 +125,6 @@ class User extends ActiveRecord implements IdentityInterface
         return static::findOne([
             'id' => $payload['uid'],
             'is_active' => true,
-            'deleted_at' => null,
         ]);
     }
 
@@ -147,7 +145,6 @@ class User extends ActiveRecord implements IdentityInterface
             ])
             ->leftJoin('roles r', 'r.id = u.roles')
             ->where(['ILIKE', 'username', $username])
-            ->andWhere(['deleted_at' => null])
             ->one();
     }
 

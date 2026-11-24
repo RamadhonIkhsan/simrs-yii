@@ -23,7 +23,7 @@ class Procedure extends ActiveRecord
             [['tariff'], 'number', 'min' => 0, 'max' => 999999999],
             [['is_active'], 'boolean'],
             [['created_by', 'updated_by'], 'integer'],
-            [['created_at', 'updated_at', 'deleted_at'], 'safe'],
+            [['created_at', 'updated_at'], 'safe'],
         ];
     }
 

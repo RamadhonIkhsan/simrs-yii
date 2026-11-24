@@ -30,7 +30,7 @@ class Patient extends ActiveRecord
             [['phone'], 'match', 'pattern' => '/^\+?[0-9]{6,20}$/', 'message' => 'Nomor telepon hanya boleh berisi angka dan tanda + di awal'],
             [['blood_type'], 'in', 'range' => self::VALID_BLOOD_TYPES, 'message' => 'Golongan darah harus salah satu dari: A+, A-, B+, B-, AB+, AB-, O+, O-'],
             [['created_by', 'updated_by'], 'integer'],
-            [['created_at', 'updated_at', 'deleted_at'], 'safe'],
+            [['created_at', 'updated_at'], 'safe'],
         ];
     }
 

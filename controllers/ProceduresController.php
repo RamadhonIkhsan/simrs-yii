@@ -54,7 +54,7 @@ class ProceduresController extends Controller
     public function actionIndex(): array
     {
         $request = Yii::$app->request;
-        $query = Procedure::find()->where(['deleted_at' => null]);
+        $query = Procedure::find();
 
         $this->applyCodeNameSearch(
             $query,
@@ -76,7 +76,7 @@ class ProceduresController extends Controller
     {
         $rows = Procedure::find()
             ->select(['id', 'code', 'name', 'tariff'])
-            ->where(['is_active' => true, 'deleted_at' => null])
+            ->where(['is_active' => true])
             ->orderBy(['name' => SORT_ASC])
             ->asArray()
             ->all();
@@ -100,7 +100,7 @@ class ProceduresController extends Controller
 
     public function actionView(int $id): array
     {
-        $procedure = Procedure::findOne(['id' => $id, 'deleted_at' => null]);
+        $procedure = Procedure::findOne(['id' => $id]);
         if (!$procedure) {
             return [
                 'rc'   => 404,
@@ -130,7 +130,7 @@ class ProceduresController extends Controller
 
         if ($code !== '') {
             $exists = Procedure::find()
-                ->where(['upper(code)' => $code, 'deleted_at' => null])
+                ->where(['upper(code)' => $code])
                 ->exists();
             if ($exists) {
                 return [
@@ -199,7 +199,7 @@ class ProceduresController extends Controller
             return $denied;
         }
 
-        $procedure = Procedure::findOne(['id' => $id, 'deleted_at' => null]);
+        $procedure = Procedure::findOne(['id' => $id]);
         if (!$procedure) {
             return [
                 'rc'   => 404,
@@ -214,7 +214,7 @@ class ProceduresController extends Controller
         if (isset($params['code'])) {
             $newCode = $this->normalizeCode($params['code']);
             $exists = Procedure::find()
-                ->where(['upper(code)' => $newCode, 'deleted_at' => null])
+                ->where(['upper(code)' => $newCode])
                 ->andWhere(['!=', 'id', $id])
                 ->exists();
             if ($exists) {
@@ -285,7 +285,7 @@ class ProceduresController extends Controller
             return $denied;
         }
 
-        $procedure = Procedure::findOne(['id' => $id, 'deleted_at' => null]);
+        $procedure = Procedure::findOne(['id' => $id]);
         if (!$procedure) {
             return [
                 'rc'   => 404,
@@ -295,7 +295,7 @@ class ProceduresController extends Controller
         }
 
         $oldValues = $this->dataProcedure($procedure);
-        return $this->performSoftDelete($procedure, 'procedures', $oldValues);
+        return $this->performDelete($procedure, 'procedures', $oldValues);
     }
 
     private function dataProcedure(Procedure $procedure): array

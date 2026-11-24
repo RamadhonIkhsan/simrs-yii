@@ -82,7 +82,7 @@ class PatientsController extends Controller
             $offset = $displayPage * $size;
         }
 
-        $query = Patient::find()->where(['deleted_at' => null]);
+        $query = Patient::find();
 
         if ($search !== '') {
             $normalizedSearch = Patient::normalizeName($search);
@@ -145,7 +145,7 @@ class PatientsController extends Controller
 
     public function actionView(int $id): array
     {
-        $patient = Patient::findOne(['id' => $id, 'deleted_at' => null]);
+        $patient = Patient::findOne(['id' => $id]);
         if (!$patient) {
             return [
                 'rc' => 404,
@@ -228,7 +228,7 @@ class PatientsController extends Controller
 
     public function actionUpdate(int $id): array
     {
-        $patient = Patient::findOne(['id' => $id, 'deleted_at' => null]);
+        $patient = Patient::findOne(['id' => $id]);
         if (!$patient) {
             return [
                 'rc' => 404,
@@ -316,7 +316,7 @@ class PatientsController extends Controller
 
     public function actionDelete(int $id): array
     {
-        $patient = Patient::findOne(['id' => $id, 'deleted_at' => null]);
+        $patient = Patient::findOne(['id' => $id]);
         if (!$patient) {
             return [
                 'rc' => 404,
@@ -341,13 +341,15 @@ class PatientsController extends Controller
 
         $oldValues = $this->dataPatient($patient);
 
-        $now = date('Y-m-d H:i:s');
-        $currentUserId = Yii::$app->user->id !== null ? (int)Yii::$app->user->id : null;
-
-        $patient->deleted_at = $now;
-        $patient->updated_at = $now;
-        $patient->updated_by = $currentUserId;
-        $patient->save(false);
+        try {
+            $patient->delete();
+        } catch (\yii\db\IntegrityException $e) {
+            return [
+                'rc'   => 409,
+                'rm'   => 'Data pasien tidak dapat dihapus karena masih terkait dengan data lain',
+                'data' => null,
+            ];
+        }
 
         AuditLog::log('patients', $id, 'DELETE', $oldValues, null);
 
@@ -405,8 +407,7 @@ class PatientsController extends Controller
         $rows = (new Query())
             ->select(['id', 'medical_record_no', 'full_name', 'birth_date', 'phone'])
             ->from('patients')
-            ->where(['deleted_at' => null])
-            ->andWhere($conditions, $bindParams)
+            ->where($conditions, $bindParams)
             ->orderBy(['id' => SORT_ASC])
             ->all();
 
@@ -435,7 +436,7 @@ class PatientsController extends Controller
             return $denied;
         }
 
-        $patient = Patient::findOne(['id' => $id, 'deleted_at' => null]);
+        $patient = Patient::findOne(['id' => $id]);
         if (!$patient) {
             return [
                 'rc'   => 404,
@@ -484,7 +485,7 @@ class PatientsController extends Controller
             return $denied;
         }
 
-        $patient = Patient::findOne(['id' => $id, 'deleted_at' => null]);
+        $patient = Patient::findOne(['id' => $id]);
         if (!$patient) {
             return [
                 'rc'   => 404,
@@ -632,7 +633,7 @@ class PatientsController extends Controller
         $query = (new Query())
             ->select(['id', 'medical_record_no'])
             ->from('patients')
-            ->where(['nik' => $nik, 'deleted_at' => null]);
+            ->where(['nik' => $nik]);
 
         if ($excludeId !== null) {
             $query->andWhere(['!=', 'id', $excludeId]);
@@ -651,8 +652,7 @@ class PatientsController extends Controller
         $sql = "
             SELECT id, medical_record_no
             FROM patients
-            WHERE deleted_at IS NULL
-              AND LOWER(full_name) = LOWER(:full_name)
+            WHERE LOWER(full_name) = LOWER(:full_name)
               AND birth_date = :birth_date
               AND COALESCE(phone, '') = :phone
         ";

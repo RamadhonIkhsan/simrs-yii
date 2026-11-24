@@ -24,7 +24,7 @@ class Poli extends ActiveRecord
             [['registration_fee'], 'number', 'min' => 0, 'max' => 99999999],
             [['is_active'], 'boolean'],
             [['created_by', 'updated_by'], 'integer'],
-            [['created_at', 'updated_at', 'deleted_at'], 'safe'],
+            [['created_at', 'updated_at'], 'safe'],
         ];
     }
 

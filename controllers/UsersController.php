@@ -70,8 +70,7 @@ class UsersController extends Controller
         $query = User::find()
             ->alias('u')
             ->select(['u.*', 'r.name AS role_name'])
-            ->leftJoin('roles r', 'r.id = u.roles')
-            ->where(['u.deleted_at' => null]);
+            ->leftJoin('roles r', 'r.id = u.roles');
 
         if ($search !== '') {
             $query->andWhere([
@@ -114,7 +113,7 @@ class UsersController extends Controller
             ->alias('u')
             ->select(['u.*', 'r.name AS role_name'])
             ->leftJoin('roles r', 'r.id = u.roles')
-            ->where(['u.id' => $id, 'u.deleted_at' => null])
+            ->where(['u.id' => $id])
             ->one();
 
         if (!$user) {
@@ -184,7 +183,7 @@ class UsersController extends Controller
 
     public function actionUpdate(int $id): array
     {
-        $user = User::findOne(['id' => $id, 'deleted_at' => null]);
+        $user = User::findOne(['id' => $id]);
         if (!$user) {
             return [
                 'rc' => 404,
@@ -249,7 +248,7 @@ class UsersController extends Controller
 
     public function actionStatus(int $id): array
     {
-        $user = User::findOne(['id' => $id, 'deleted_at' => null]);
+        $user = User::findOne(['id' => $id]);
         if (!$user) {
             return [
                 'rc' => 404,
@@ -297,7 +296,7 @@ class UsersController extends Controller
 
     public function actionDelete(int $id): array
     {
-        $user = User::findOne(['id' => $id, 'deleted_at' => null]);
+        $user = User::findOne(['id' => $id]);
         if (!$user) {
             return [
                 'rc' => 404,
@@ -308,13 +307,15 @@ class UsersController extends Controller
 
         $oldValues = $this->dataUser($user);
 
-        $now = date('Y-m-d H:i:s');
-        $currentUserId = Yii::$app->user->id !== null ? (int)Yii::$app->user->id : null;
-
-        $user->deleted_at = $now;
-        $user->updated_at = $now;
-        $user->updated_by = $currentUserId;
-        $user->save(false);
+        try {
+            $user->delete();
+        } catch (\yii\db\IntegrityException $e) {
+            return [
+                'rc'   => 409,
+                'rm'   => 'Data user tidak dapat dihapus karena masih terkait dengan data lain',
+                'data' => null,
+            ];
+        }
 
         AuditLog::log('users', (int)$user->id, 'DELETE', $oldValues, null);
 

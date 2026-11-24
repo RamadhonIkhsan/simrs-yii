@@ -27,7 +27,7 @@ class Doctor extends ActiveRecord
             [['phone'], 'match', 'pattern' => '/^\+?[0-9]{8,20}$/', 'message' => 'Format nomor telepon tidak valid'],
             [['user_id', 'created_by', 'updated_by'], 'integer'],
             [['is_active'], 'boolean'],
-            [['created_at', 'updated_at', 'deleted_at'], 'safe'],
+            [['created_at', 'updated_at'], 'safe'],
         ];
     }
 

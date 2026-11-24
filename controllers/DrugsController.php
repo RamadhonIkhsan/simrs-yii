@@ -59,7 +59,7 @@ class DrugsController extends Controller
     public function actionIndex(): array
     {
         $request = Yii::$app->request;
-        $query = Drug::find()->where(['deleted_at' => null]);
+        $query = Drug::find();
 
         $this->applyCodeNameSearch(
             $query,
@@ -86,7 +86,7 @@ class DrugsController extends Controller
     {
         $rows = Drug::find()
             ->select(['id', 'code', 'name', 'unit', 'price', 'stock'])
-            ->where(['is_active' => true, 'deleted_at' => null])
+            ->where(['is_active' => true])
             ->orderBy(['name' => SORT_ASC])
             ->asArray()
             ->all();
@@ -112,7 +112,7 @@ class DrugsController extends Controller
 
     public function actionView(int $id): array
     {
-        $drug = Drug::findOne(['id' => $id, 'deleted_at' => null]);
+        $drug = Drug::findOne(['id' => $id]);
         if (!$drug) {
             return [
                 'rc'   => 404,
@@ -142,7 +142,7 @@ class DrugsController extends Controller
 
         if ($code !== '') {
             $exists = Drug::find()
-                ->where(['upper(code)' => $code, 'deleted_at' => null])
+                ->where(['upper(code)' => $code])
                 ->exists();
             if ($exists) {
                 return [
@@ -244,7 +244,7 @@ class DrugsController extends Controller
             return $denied;
         }
 
-        $drug = Drug::findOne(['id' => $id, 'deleted_at' => null]);
+        $drug = Drug::findOne(['id' => $id]);
         if (!$drug) {
             return [
                 'rc'   => 404,
@@ -270,7 +270,7 @@ class DrugsController extends Controller
         if (isset($params['code'])) {
             $newCode = $this->normalizeCode($params['code']);
             $exists = Drug::find()
-                ->where(['upper(code)' => $newCode, 'deleted_at' => null])
+                ->where(['upper(code)' => $newCode])
                 ->andWhere(['!=', 'id', $id])
                 ->exists();
             if ($exists) {
@@ -347,7 +347,7 @@ class DrugsController extends Controller
             return $denied;
         }
 
-        $drug = Drug::findOne(['id' => $id, 'deleted_at' => null]);
+        $drug = Drug::findOne(['id' => $id]);
         if (!$drug) {
             return [
                 'rc'   => 404,
@@ -357,7 +357,7 @@ class DrugsController extends Controller
         }
 
         $oldValues = $this->dataDrug($drug);
-        return $this->performSoftDelete($drug, 'drugs', $oldValues);
+        return $this->performDelete($drug, 'drugs', $oldValues);
     }
 
     public function actionStockAdjustments(int $id): array
@@ -426,7 +426,6 @@ class DrugsController extends Controller
                     updated_at = :now,
                     updated_by = :uid
                 WHERE id = :id
-                  AND deleted_at IS NULL
                   AND stock + :qty >= 0
                 RETURNING stock
             ", [
@@ -439,7 +438,7 @@ class DrugsController extends Controller
             if ($newStock === false) {
                 $transaction->rollBack();
 
-                $exists = Drug::find()->where(['id' => $id, 'deleted_at' => null])->exists();
+                $exists = Drug::find()->where(['id' => $id])->exists();
                 if (!$exists) {
                     return [
                         'rc'   => 404,

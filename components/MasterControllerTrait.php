@@ -120,30 +120,32 @@ trait MasterControllerTrait
         ];
     }
 
-    protected function performSoftDelete(ActiveRecord $model, string $auditEntity, array $oldValues): array
+    protected function performDelete(ActiveRecord $model, string $auditEntity, array $oldValues): array
     {
-        $now = date('Y-m-d H:i:s');
-        $currentUserId = Yii::$app->user->id !== null ? (int)Yii::$app->user->id : null;
+        $id = (int)$model->getAttribute('id');
 
-        $model->setAttribute('deleted_at', $now);
-        if ($model->hasAttribute('is_active')) {
-            $model->setAttribute('is_active', false);
-        }
-        if ($model->hasAttribute('updated_at')) {
-            $model->setAttribute('updated_at', $now);
-        }
-        if ($model->hasAttribute('updated_by')) {
-            $model->setAttribute('updated_by', $currentUserId);
+        try {
+            $model->delete();
+        } catch (\yii\db\IntegrityException $e) {
+            Yii::$app->response->statusCode = 409;
+            return [
+                'rc'   => 409,
+                'rm'   => 'Data tidak dapat dihapus karena masih terkait dengan data lain',
+                'data' => null,
+            ];
         }
 
-        $model->save(false);
-
-        AuditLog::log($auditEntity, (int)$model->getAttribute('id'), 'DELETE', $oldValues, null);
+        AuditLog::log($auditEntity, $id, 'DELETE', $oldValues, null);
 
         return [
-            'rc' => 200,
-            'rm' => 'Berhasil',
+            'rc'   => 200,
+            'rm'   => 'Berhasil',
             'data' => null,
         ];
+    }
+
+    protected function performSoftDelete(ActiveRecord $model, string $auditEntity, array $oldValues): array
+    {
+        return $this->performDelete($model, $auditEntity, $oldValues);
     }
 }

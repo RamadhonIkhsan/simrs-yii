@@ -29,7 +29,7 @@ class DoctorContext
 
         $docId = Doctor::find()
             ->select('id')
-            ->where(['user_id' => (int)$userId, 'deleted_at' => null])
+            ->where(['user_id' => (int)$userId])
             ->scalar();
 
         return $docId !== false && $docId !== null ? (int)$docId : null;

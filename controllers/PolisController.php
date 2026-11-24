@@ -72,7 +72,7 @@ class PolisController extends Controller
             $offset = $displayPage * $size;
         }
 
-        $query = Poli::find()->where(['deleted_at' => null]);
+        $query = Poli::find();
 
         if ($search !== '') {
             $query->andWhere([
@@ -131,7 +131,7 @@ class PolisController extends Controller
     {
         $polis = Poli::find()
             ->select(['id', 'code', 'name', 'registration_fee'])
-            ->where(['is_active' => true, 'deleted_at' => null])
+            ->where(['is_active' => true])
             ->orderBy(['name' => SORT_ASC])
             ->asArray()
             ->all();
@@ -155,7 +155,7 @@ class PolisController extends Controller
 
     public function actionView(int $id): array
     {
-        $poli = Poli::findOne(['id' => $id, 'deleted_at' => null]);
+        $poli = Poli::findOne(['id' => $id]);
         if (!$poli) {
             return [
                 'rc' => 404,
@@ -185,7 +185,7 @@ class PolisController extends Controller
 
         if ($code !== '') {
             $exists = Poli::find()
-                ->where(['upper(code)' => $code, 'deleted_at' => null])
+                ->where(['upper(code)' => $code])
                 ->exists();
             if ($exists) {
                 return [
@@ -240,7 +240,7 @@ class PolisController extends Controller
 
     public function actionUpdate(int $id): array
     {
-        $poli = Poli::findOne(['id' => $id, 'deleted_at' => null]);
+        $poli = Poli::findOne(['id' => $id]);
         if (!$poli) {
             return [
                 'rc' => 404,
@@ -260,7 +260,7 @@ class PolisController extends Controller
         if (isset($params['code'])) {
             $newCode = strtoupper(trim((string)$params['code']));
             $exists = Poli::find()
-                ->where(['upper(code)' => $newCode, 'deleted_at' => null])
+                ->where(['upper(code)' => $newCode])
                 ->andWhere(['!=', 'id', $id])
                 ->exists();
             if ($exists) {
@@ -319,7 +319,7 @@ class PolisController extends Controller
 
     public function actionDelete(int $id): array
     {
-        $poli = Poli::findOne(['id' => $id, 'deleted_at' => null]);
+        $poli = Poli::findOne(['id' => $id]);
         if (!$poli) {
             return [
                 'rc' => 404,
@@ -343,13 +343,15 @@ class PolisController extends Controller
 
         $oldValues = $this->dataPoli($poli);
 
-        $now = date('Y-m-d H:i:s');
-        $currentUserId = Yii::$app->user->id !== null ? (int)Yii::$app->user->id : null;
-
-        $poli->deleted_at = $now;
-        $poli->updated_at = $now;
-        $poli->updated_by = $currentUserId;
-        $poli->save(false);
+        try {
+            $poli->delete();
+        } catch (\yii\db\IntegrityException $e) {
+            return [
+                'rc'   => 409,
+                'rm'   => 'Data poli tidak dapat dihapus karena masih terkait dengan data lain',
+                'data' => null,
+            ];
+        }
 
         AuditLog::log('polis', (int)$poli->id, 'DELETE', $oldValues, null);
 

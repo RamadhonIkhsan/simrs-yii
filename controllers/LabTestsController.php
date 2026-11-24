@@ -54,7 +54,7 @@ class LabTestsController extends Controller
     public function actionIndex(): array
     {
         $request = Yii::$app->request;
-        $query = LabTest::find()->where(['deleted_at' => null]);
+        $query = LabTest::find();
 
         $this->applyCodeNameSearch(
             $query,
@@ -76,7 +76,7 @@ class LabTestsController extends Controller
     {
         $rows = LabTest::find()
             ->select(['id', 'code', 'name', 'tariff'])
-            ->where(['is_active' => true, 'deleted_at' => null])
+            ->where(['is_active' => true])
             ->orderBy(['name' => SORT_ASC])
             ->asArray()
             ->all();
@@ -100,7 +100,7 @@ class LabTestsController extends Controller
 
     public function actionView(int $id): array
     {
-        $labTest = LabTest::findOne(['id' => $id, 'deleted_at' => null]);
+        $labTest = LabTest::findOne(['id' => $id]);
         if (!$labTest) {
             return [
                 'rc'   => 404,
@@ -130,7 +130,7 @@ class LabTestsController extends Controller
 
         if ($code !== '') {
             $exists = LabTest::find()
-                ->where(['upper(code)' => $code, 'deleted_at' => null])
+                ->where(['upper(code)' => $code])
                 ->exists();
             if ($exists) {
                 return [
@@ -201,7 +201,7 @@ class LabTestsController extends Controller
             return $denied;
         }
 
-        $labTest = LabTest::findOne(['id' => $id, 'deleted_at' => null]);
+        $labTest = LabTest::findOne(['id' => $id]);
         if (!$labTest) {
             return [
                 'rc'   => 404,
@@ -216,7 +216,7 @@ class LabTestsController extends Controller
         if (isset($params['code'])) {
             $newCode = $this->normalizeCode($params['code']);
             $exists = LabTest::find()
-                ->where(['upper(code)' => $newCode, 'deleted_at' => null])
+                ->where(['upper(code)' => $newCode])
                 ->andWhere(['!=', 'id', $id])
                 ->exists();
             if ($exists) {
@@ -293,7 +293,7 @@ class LabTestsController extends Controller
             return $denied;
         }
 
-        $labTest = LabTest::findOne(['id' => $id, 'deleted_at' => null]);
+        $labTest = LabTest::findOne(['id' => $id]);
         if (!$labTest) {
             return [
                 'rc'   => 404,
@@ -303,7 +303,7 @@ class LabTestsController extends Controller
         }
 
         $oldValues = $this->dataLabTest($labTest);
-        return $this->performSoftDelete($labTest, 'lab_tests', $oldValues);
+        return $this->performDelete($labTest, 'lab_tests', $oldValues);
     }
 
     private function dataLabTest(LabTest $labTest): array

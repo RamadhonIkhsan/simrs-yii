@@ -204,8 +204,8 @@ class SchedulesController extends Controller
 
         $query = (new Query())
             ->from(['s' => 'doctor_schedules'])
-            ->innerJoin(['d' => 'doctors'], 'd.id = s.doctor_id AND d.is_active = true AND d.deleted_at IS NULL')
-            ->innerJoin(['p' => 'polis'], 'p.id = s.poli_id AND p.is_active = true AND p.deleted_at IS NULL')
+            ->innerJoin(['d' => 'doctors'], 'd.id = s.doctor_id AND d.is_active = true')
+            ->innerJoin(['p' => 'polis'], 'p.id = s.poli_id AND p.is_active = true')
             ->where([
                 's.poli_id' => $poliId,
                 's.day_of_week' => $dayOfWeek,
@@ -516,7 +516,7 @@ class SchedulesController extends Controller
     private function validateDoctor(int $doctorId): ?array
     {
         $exists = Doctor::find()
-            ->where(['id' => $doctorId, 'is_active' => true, 'deleted_at' => null])
+            ->where(['id' => $doctorId, 'is_active' => true])
             ->exists();
 
         if (!$exists) {
@@ -533,7 +533,7 @@ class SchedulesController extends Controller
     private function validatePoli(int $poliId): ?array
     {
         $exists = Poli::find()
-            ->where(['id' => $poliId, 'is_active' => true, 'deleted_at' => null])
+            ->where(['id' => $poliId, 'is_active' => true])
             ->exists();
 
         if (!$exists) {
